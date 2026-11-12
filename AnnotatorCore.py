@@ -274,9 +274,12 @@ def validate_oncokb_token():
 
     if oncokb_api_bearer_token is None or not oncokb_api_bearer_token:
         log.error("Please specify your OncoKB token")
-        exit()
+        sys.exit(1)
 
-    response = requests.get(oncokb_api_url + "/tokens/" + oncokb_api_bearer_token, timeout=REQUEST_TIMEOUT)
+    # Retry transient 429/5xx (Retry-After honored) like every other API call;
+    # a rejected or expired token must exit non-zero so callers see the failure.
+    response = requests_retry_session(backoff_factor=2).get(
+        oncokb_api_url + "/tokens/" + oncokb_api_bearer_token, timeout=REQUEST_TIMEOUT)
     if response.status_code == 200:
         token = response.json()
         time_stamp = datetime.datetime.strptime(token['expiration'], "%Y-%m-%dT%H:%M:%SZ")
@@ -284,7 +287,7 @@ def validate_oncokb_token():
         if (days_from_expiration.days < 0):
             log.error(
                 "Your OncoKB API token already expired. Please reach out to us to renew your token.")
-            exit()
+            sys.exit(1)
         elif (days_from_expiration.days < 7):
             log.warning(
                 "Your OncoKB API token will expire soon, please be on the lookout for an OncoKB email to renew your token. Expire on " + str(
@@ -301,7 +304,7 @@ def validate_oncokb_token():
             reason = response.reason
 
         log.error("Error when validating token, " + "reason: %s" % reason)
-        exit()
+        sys.exit(1)
 
 
 def generateReadme(outfile):
