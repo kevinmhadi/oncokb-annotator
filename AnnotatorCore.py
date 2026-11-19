@@ -360,7 +360,9 @@ def makeoncokbpostrequest(url, body):
         'Content-Type': 'application/json',
         'Authorization': 'Bearer %s' % oncokb_api_bearer_token
     }
-    return requests_retry_session(allowed_methods=["POST"]).post(url, headers=headers,
+    # Annotation POSTs are read-only lookups. Retry 429/5xx for ~6 minutes
+    # (0, 4, 8, ... capped at 120 s; Retry-After honored) to ride out outages.
+    return requests_retry_session(retries=8, backoff_factor=2, allowed_methods=["POST"]).post(url, headers=headers,
                                                                  data=json.dumps(body, default=lambda o: o.__dict__),
                                                                  timeout=REQUEST_TIMEOUT)
 
